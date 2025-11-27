@@ -1,263 +1,286 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<title>canvas爱心</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Three.js 交互式粒子星球</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Roboto, sans-serif; }
+        canvas { display: block; }
+        
+        /* 全屏按钮样式 */
+        #fullscreen-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+        #fullscreen-btn:hover { background: rgba(255, 255, 255, 0.3); }
+        #fullscreen-btn svg { fill: white; width: 24px; height: 24px; }
 
-<style>
-html, body {
-  height: 100%;
-  padding: 0;
-  margin: 0;
-  background: #000;
-}
-canvas {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-}</style>
+        /* 简单的操作提示 */
+        #instruction {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255,255,255,0.5);
+            font-size: 12px;
+            pointer-events: none;
+            user-select: none;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "lil-gui": "https://unpkg.com/lil-gui@0.19.1/dist/lil-gui.esm.min.js"
+            }
+        }
+    </script>
 </head>
 <body>
 
-<canvas id="pinkboard"></canvas>
+    <div id="instruction">
+        ↔ 水平滑动：旋转速度 <br>
+        ↕ 垂直滑动：粒子扩散
+    </div>
 
-<script>
-/*
- * Settings
- */
-var settings = {
-  particles: {
-    length:   500, // maximum amount of particles
-    duration:   2, // particle duration in sec
-    velocity: 100, // particle velocity in pixels/sec
-    effect: -0.75, // play with this for a nice effect
-    size:      30, // particle size in pixels
-  },
-};
+    <div id="fullscreen-btn" title="全屏切换">
+        <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+    </div>
 
-/*
- * RequestAnimationFrame polyfill by Erik M?ller
- */
-(function(){var b=0;var c=["ms","moz","webkit","o"];for(var a=0;a<c.length&&!window.requestAnimationFrame;++a){window.requestAnimationFrame=window[c[a]+"RequestAnimationFrame"];window.cancelAnimationFrame=window[c[a]+"CancelAnimationFrame"]||window[c[a]+"CancelRequestAnimationFrame"]}if(!window.requestAnimationFrame){window.requestAnimationFrame=function(h,e){var d=new Date().getTime();var f=Math.max(0,16-(d-b));var g=window.setTimeout(function(){h(d+f)},f);b=d+f;return g}}if(!window.cancelAnimationFrame){window.cancelAnimationFrame=function(d){clearTimeout(d)}}}());
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import GUI from 'lil-gui';
 
-/*
- * Point class
- */
-var Point = (function() {
-  function Point(x, y) {
-    this.x = (typeof x !== 'undefined') ? x : 0;
-    this.y = (typeof y !== 'undefined') ? y : 0;
-  }
-  Point.prototype.clone = function() {
-    return new Point(this.x, this.y);
-  };
-  Point.prototype.length = function(length) {
-    if (typeof length == 'undefined')
-      return Math.sqrt(this.x * this.x + this.y * this.y);
-    this.normalize();
-    this.x *= length;
-    this.y *= length;
-    return this;
-  };
-  Point.prototype.normalize = function() {
-    var length = this.length();
-    this.x /= length;
-    this.y /= length;
-    return this;
-  };
-  return Point;
-})();
+        // --- 1. 场景初始化 ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050505, 0.02); // 添加雾效增加深度感
 
-/*
- * Particle class
- */
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 25;
 
-var Particle = (function() {
-  function Particle() {
-    this.position = new Point();
-    this.velocity = new Point();
-    this.acceleration = new Point();
-    this.age = 0;
-  }
-  Particle.prototype.initialize = function(x, y, dx, dy) {
-    this.position.x = x;
-    this.position.y = y;
-    this.velocity.x = dx;
-    this.velocity.y = dy;
-    this.acceleration.x = dx * settings.particles.effect;
-    this.acceleration.y = dy * settings.particles.effect;
-    this.age = 0;
-  };
-  Particle.prototype.update = function(deltaTime) {
-    this.position.x += this.velocity.x * deltaTime;
-    this.position.y += this.velocity.y * deltaTime;
-    this.velocity.x += this.acceleration.x * deltaTime;
-    this.velocity.y += this.acceleration.y * deltaTime;
-    this.age += deltaTime;
-  };
-  Particle.prototype.draw = function(context, image) {
-    function ease(t) {
-      return (--t) * t * t + 1;
-    }
-    var size = image.width * ease(this.age / settings.particles.duration);
-    context.globalAlpha = 1 - this.age / settings.particles.duration;
-    context.drawImage(image, this.position.x - size / 2, this.position.y - size / 2, size, size);
-  };
-  return Particle;
-})();
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
 
-/*
- * ParticlePool class
- */
-var ParticlePool = (function() {
-  var particles,
-      firstActive = 0,
-      firstFree   = 0,
-      duration    = settings.particles.duration;
-  
-  function ParticlePool(length) {
-    // create and populate particle pool
-    particles = new Array(length);
-    for (var i = 0; i < particles.length; i++)
-      particles[i] = new Particle();
-  }
-  ParticlePool.prototype.add = function(x, y, dx, dy) {
-    particles[firstFree].initialize(x, y, dx, dy);
-    
-    // handle circular queue
-    firstFree++;
-    if (firstFree   == particles.length) firstFree   = 0;
-    if (firstActive == firstFree       ) firstActive++;
-    if (firstActive == particles.length) firstActive = 0;
-  };
-  ParticlePool.prototype.update = function(deltaTime) {
-    var i;
-    
-    // update active particles
-    if (firstActive < firstFree) {
-      for (i = firstActive; i < firstFree; i++)
-        particles[i].update(deltaTime);
-    }
-    if (firstFree < firstActive) {
-      for (i = firstActive; i < particles.length; i++)
-        particles[i].update(deltaTime);
-      for (i = 0; i < firstFree; i++)
-        particles[i].update(deltaTime);
-    }
-    
-    // remove inactive particles
-    while (particles[firstActive].age >= duration && firstActive != firstFree) {
-      firstActive++;
-      if (firstActive == particles.length) firstActive = 0;
-    }
-    
-    
-  };
-  ParticlePool.prototype.draw = function(context, image) {
-    // draw active particles
-    if (firstActive < firstFree) {
-      for (i = firstActive; i < firstFree; i++)
-        particles[i].draw(context, image);
-    }
-    if (firstFree < firstActive) {
-      for (i = firstActive; i < particles.length; i++)
-        particles[i].draw(context, image);
-      for (i = 0; i < firstFree; i++)
-        particles[i].draw(context, image);
-    }
-  };
-  return ParticlePool;
-})();
+        // --- 2. 创建核心星球 (网格模型) ---
+        const planetGeometry = new THREE.IcosahedronGeometry(8, 2);
+        const planetMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x223344, 
+            wireframe: true,
+            transparent: true,
+            opacity: 0.3
+        });
+        const planet = new THREE.Mesh(planetGeometry, planetMaterial);
+        scene.add(planet);
 
-/*
- * Putting it all together
- */
-(function(canvas) {
-  var context = canvas.getContext('2d'),
-      particles = new ParticlePool(settings.particles.length),
-      particleRate = settings.particles.length / settings.particles.duration, // particles/sec
-      time;
-  
-  // get point on heart with -PI <= t <= PI
-  function pointOnHeart(t) {
-    return new Point(
-      160 * Math.pow(Math.sin(t), 3),
-      130 * Math.cos(t) - 50 * Math.cos(2 * t) - 20 * Math.cos(3 * t) - 10 * Math.cos(4 * t) + 25
-    );
-  }
-  
-  // creating the particle image using a dummy canvas
-  var image = (function() {
-    var canvas  = document.createElement('canvas'),
-        context = canvas.getContext('2d');
-    canvas.width  = settings.particles.size;
-    canvas.height = settings.particles.size;
-    // helper function to create the path
-    function to(t) {
-      var point = pointOnHeart(t);
-      point.x = settings.particles.size / 2 + point.x * settings.particles.size / 350;
-      point.y = settings.particles.size / 2 - point.y * settings.particles.size / 350;
-      return point;
-    }
-    // create the path
-    context.beginPath();
-    var t = -Math.PI;
-    var point = to(t);
-    context.moveTo(point.x, point.y);
-    while (t < Math.PI) {
-      t += 0.01; // baby steps!
-      point = to(t);
-      context.lineTo(point.x, point.y);
-    }
-    context.closePath();
-    // create the fill
-    context.fillStyle = '#ea80b0';
-    context.fill();
-    // create the image
-    var image = new Image();
-    image.src = canvas.toDataURL();
-    return image;
-  })();
-  
-  // render that thing!
-  function render() {
-    // next animation frame
-    requestAnimationFrame(render);
-    
-    // update time
-    var newTime   = new Date().getTime() / 1000,
-        deltaTime = newTime - (time || newTime);
-    time = newTime;
-    
-    // clear canvas
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // create new particles
-    var amount = particleRate * deltaTime;
-    for (var i = 0; i < amount; i++) {
-      var pos = pointOnHeart(Math.PI - 2 * Math.PI * Math.random());
-      var dir = pos.clone().length(settings.particles.velocity);
-      particles.add(canvas.width / 2 + pos.x, canvas.height / 2 - pos.y, dir.x, -dir.y);
-    }
-    
-    // update and draw particles
-    particles.update(deltaTime);
-    particles.draw(context, image);
-  }
-  
-  // handle (re-)sizing of the canvas
-  function onResize() {
-    canvas.width  = canvas.clientWidth;
-    canvas.height = canvas.clientHeight;
-  }
-  window.onresize = onResize;
-  
-  // delay rendering bootstrap
-  setTimeout(function() {
-    onResize();
-    render();
-  }, 10);
-})(document.getElementById('pinkboard'));</script>
+        // --- 3. 创建粒子系统 ---
+        const particlesParams = {
+            count: 4000,
+            size: 0.15,
+            color: '#44aaff',
+            radius: 9,
+            diffusion: 1.0 // 扩散系数
+        };
 
+        let particleSystem, particlePositions, originalPositions;
+
+        function createParticles() {
+            if (particleSystem) {
+                scene.remove(particleSystem);
+                particleSystem.geometry.dispose();
+                particleSystem.material.dispose();
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            particlePositions = new Float32Array(particlesParams.count * 3);
+            originalPositions = new Float32Array(particlesParams.count * 3);
+            const colors = new Float32Array(particlesParams.count * 3);
+
+            const colorObj = new THREE.Color(particlesParams.color);
+
+            for (let i = 0; i < particlesParams.count; i++) {
+                // 在球体表面随机生成点
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                const r = particlesParams.radius + (Math.random() - 0.5) * 1.5; // 基础半径 + 少量随机
+
+                const x = r * Math.sin(phi) * Math.cos(theta);
+                const y = r * Math.sin(phi) * Math.sin(theta);
+                const z = r * Math.cos(phi);
+
+                particlePositions[i * 3] = x;
+                particlePositions[i * 3 + 1] = y;
+                particlePositions[i * 3 + 2] = z;
+
+                // 保存原始位置用于计算扩散
+                originalPositions[i * 3] = x;
+                originalPositions[i * 3 + 1] = y;
+                originalPositions[i * 3 + 2] = z;
+
+                colors[i * 3] = colorObj.r;
+                colors[i * 3 + 1] = colorObj.g;
+                colors[i * 3 + 2] = colorObj.b;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: particlesParams.size,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                transparent: true,
+                map: createCircleTexture() // 使用圆形纹理
+            });
+
+            particleSystem = new THREE.Points(geometry, material);
+            scene.add(particleSystem);
+        }
+
+        // 辅助函数：创建圆形粒子纹理
+        function createCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const context = canvas.getContext('2d');
+            context.beginPath();
+            context.arc(16, 16, 14, 0, 2 * Math.PI);
+            context.fillStyle = '#ffffff';
+            context.fill();
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        createParticles();
+
+        // --- 4. UI 面板 (lil-gui) ---
+        const gui = new GUI({ title: '控制面板' });
+        
+        gui.addColor(particlesParams, 'color').name('粒子颜色').onChange(createParticles);
+        
+        gui.add(particlesParams, 'size', 0.05, 1).name('粒子大小').onChange(v => {
+            particleSystem.material.size = v;
+        });
+
+        // 这个参数主要通过 UI 调整基础半径
+        gui.add(particlesParams, 'radius', 5, 15).name('基础半径').onChange(createParticles);
+
+        // --- 5. 交互逻辑 (手势/鼠标) ---
+        const mouse = { x: 0, y: 0 };
+        const targetState = {
+            rotationSpeed: 0.002,
+            diffusionFactor: 1.0
+        };
+
+        // 监听鼠标/触摸移动
+        function onInputMove(x, y) {
+            // 将屏幕坐标归一化到 -1 到 1
+            const ndcX = (x / window.innerWidth) * 2 - 1;
+            const ndcY = -(y / window.innerHeight) * 2 + 1;
+
+            // 逻辑映射：
+            // X轴位置 -> 旋转速度 (左慢右快，或者方向改变)
+            targetState.rotationSpeed = ndcX * 0.02;
+
+            // Y轴位置 -> 扩散程度 (向上扩散大，向下收缩)
+            // 映射范围：从 1.0 (原状) 到 2.5 (扩散)
+            targetState.diffusionFactor = 1.0 + Math.max(0, ndcY + 0.5); 
+        }
+
+        window.addEventListener('mousemove', (e) => onInputMove(e.clientX, e.clientY));
+        window.addEventListener('touchmove', (e) => {
+            // 防止默认滚动
+            e.preventDefault(); 
+            onInputMove(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+
+        // --- 6. 全屏控制 ---
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        });
+
+        // 窗口大小调整
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 7. 动画循环 ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const time = clock.getElapsedTime();
+
+            // 1. 平滑插值 (Lerp) 使手势反应更自然
+            particlesParams.diffusion = THREE.MathUtils.lerp(particlesParams.diffusion, targetState.diffusionFactor, 0.05);
+            
+            // 2. 旋转星球和粒子
+            // 基础自转 + 手势控制的速度
+            const currentRotSpeed = targetState.rotationSpeed;
+            planet.rotation.y += currentRotSpeed;
+            particleSystem.rotation.y += currentRotSpeed;
+            planet.rotation.x += currentRotSpeed * 0.5;
+
+            // 3. 实时更新粒子位置 (扩散效果 + 呼吸效果)
+            const positions = particleSystem.geometry.attributes.position.array;
+            
+            for (let i = 0; i < particlesParams.count; i++) {
+                const ix = i * 3;
+                const iy = i * 3 + 1;
+                const iz = i * 3 + 2;
+
+                // 获取原始位置
+                const ox = originalPositions[ix];
+                const oy = originalPositions[iy];
+                const oz = originalPositions[iz];
+
+                // 计算呼吸动画 (基于时间的 sin 波)
+                const breathe = 1 + Math.sin(time * 2 + ox) * 0.05;
+
+                // 综合因子 = UI/手势扩散 * 呼吸动画
+                const scale = particlesParams.diffusion * breathe;
+
+                positions[ix] = ox * scale;
+                positions[iy] = oy * scale;
+                positions[iz] = oz * scale;
+            }
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+
+            // 4. 让星球核心也轻微脉动
+            const coreScale = 1 + Math.sin(time) * 0.02;
+            planet.scale.set(coreScale, coreScale, coreScale);
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+    </script>
 </body>
 </html>
