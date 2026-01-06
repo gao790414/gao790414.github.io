@@ -2,315 +2,736 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>3D 粒子爱心 - 允允 (完整版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Particle Confession</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Helvetica Neue', sans-serif; }
-        canvas { display: block; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            cursor: grab;
+        }
         
-        /* UI 容器 */
-        #ui-container { position: absolute; top: 20px; right: 20px; z-index: 10; }
-
-        /* 底部提示 */
-        .instruction {
-            position: absolute; bottom: 80px; width: 100%; text-align: center;
-            color: rgba(255, 255, 255, 0.8); pointer-events: none;
-            font-size: 15px; letter-spacing: 2px; text-transform: uppercase;
-            text-shadow: 0 0 10px rgba(0,0,0,0.8); z-index: 5;
-            font-weight: bold;
-        }
-        .sub-instruction {
-            display: block; font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 5px; font-weight: normal;
+        #canvas-container:active {
+            cursor: grabbing;
         }
 
-        /* 全屏按钮 */
+        /* UI Layer */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Buttons */
+        .btn {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            padding: 12px 40px;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            outline: none;
+            text-shadow: 0 0 5px rgba(255,255,255,0.5);
+            /* 减少阴影复杂度以提升低端机UI渲染性能 */
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
         #fullscreen-btn {
-            position: absolute; bottom: 20px; left: 20px;
-            background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
-            color: white; padding: 10px 15px; border-radius: 8px; cursor: pointer;
-            backdrop-filter: blur(5px); transition: all 0.3s; z-index: 10; font-size: 12px;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            padding: 0;
+            font-size: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0.7;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            pointer-events: auto;
         }
-        #fullscreen-btn:hover { background: rgba(255, 255, 255, 0.3); }
 
-        /* 摄像头预览 */
-        #webcam-container {
-            position: absolute; bottom: 20px; right: 20px;
-            width: 160px; height: 120px;
-            border-radius: 12px; overflow: hidden;
-            border: 2px solid rgba(255,255,255,0.3);
-            z-index: 10; background: #000; display: none;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        #settings-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        #webcam-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-        #webcam-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); }
+
+        #settings-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            padding: 0;
+            font-size: 22px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0.7;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            cursor: pointer;
+        }
+
+        #settings-panel {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 10px 15px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            transform: translateX(-20px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        #settings-panel.active {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+
+        .slider-label {
+            color: white;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100px;
+            height: 4px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #exit-btn {
+            position: absolute;
+            bottom: 80px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s, transform 0.5s;
+        }
         
-        #loading-text {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: white; font-size: 12px; pointer-events: none; animation: pulse 1s infinite;
+        #hint-text {
+            position: absolute;
+            bottom: 150px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 1s;
+            pointer-events: none;
+            text-align: center;
+            line-height: 1.5;
+            letter-spacing: 1px;
         }
-        @keyframes pulse { 0% {opacity:0.5;} 50% {opacity:1;} 100% {opacity:0.5;} }
+
+        .hidden { display: none !important; }
+        .fade-in { opacity: 1 !important; transform: translateY(0) !important; }
     </style>
 </head>
 <body>
 
-    <div id="ui-container"></div>
-    <div class="instruction">
-        单手操控模式
-        <span class="sub-instruction">手掌移动旋转 · 拇指食指开合缩放 · 右上角调整粒子</span>
-    </div>
-    <div id="loading-text">正在启动视觉引擎...</div>
-    <button id="fullscreen-btn">⛶ 全屏模式</button>
+    <div id="canvas-container"></div>
 
-    <div id="webcam-container">
-        <video id="webcam-video" autoplay playsinline muted></video>
-        <canvas id="webcam-canvas"></canvas>
+    <div id="ui-layer">
+        <div id="settings-container">
+            <button id="settings-btn" class="btn" title="设置亮度">⚙️</button>
+            <div id="settings-panel">
+                <span class="slider-label">亮度</span>
+                <input type="range" id="brightness-slider" min="0.5" max="2.5" step="0.1" value="1.0">
+            </div>
+        </div>
+
+        <button id="fullscreen-btn" class="btn">⛶</button>
+
+        <button id="start-btn" class="btn">开始</button>
+        <div id="hint-text">单指拖动旋转<br>双指张开散落</div>
+        <button id="exit-btn" class="btn">退出</button>
     </div>
 
     <script type="importmap">
         {
             "imports": {
                 "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-                "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3"
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
             }
         }
     </script>
 
     <script type="module">
         import * as THREE from 'three';
-        import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
-        import { FilesetResolver, HandLandmarker, DrawingUtils } from '@mediapipe/tasks-vision';
 
-        // --- 配置参数 ---
-        const config = {
-            particleColor: '#ff69b4', // 初始颜色
-            particleSize: 4.0,        // 初始大小
-            dispersion: 0.0,
-            handControl: true 
+        // --- Optimization Configuration ---
+        const CONFIG = {
+            particleCount: 5500, // 降低粒子数，老机器也能跑
+            particleSize: 0.28,
+            textScale: 0.12,
+            colors: [0xff3377, 0xff99cc, 0xffffff, 0x00ffff, 0xffcc00],
+            balloonCount: 150, // 略微减少气球数量
+            sphereRadius: 35
         };
 
-        // --- 场景 ---
-        const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x050505, 0.002);
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 30;
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        document.body.appendChild(renderer.domElement);
+        let scene, camera, renderer, particles, particleGeo, particleMat;
+        let balloonsMesh;
+        let animationId;
+        
+        let currentPositions = []; 
+        let textTargetPositions = []; 
+        let sphereTargetPositions = []; 
+        let activeTargetPositions = [];
+        let baseColorsRGB = [];
+        
+        let state = 'IDLE'; 
+        let dispersionLevel = 0; 
+        let balloonsActive = false; // 控制气球是否处于活动状态
+        
+        // Interaction vars
+        let touchStartDist = 0;
+        let touchStartDispersion = 0;
+        let isDragging = false;
+        let previousMouseX = 0;
+        let targetRotationY = 0;
+        let currentRotationY = 0;
+        
+        const clock = new THREE.Clock();
+        
+        // DOM
+        const startBtn = document.getElementById('start-btn');
+        const exitBtn = document.getElementById('exit-btn');
+        const fsBtn = document.getElementById('fullscreen-btn');
+        const hintText = document.getElementById('hint-text');
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsPanel = document.getElementById('settings-panel');
+        const brightnessSlider = document.getElementById('brightness-slider');
 
-        // --- 粒子数据生成 ---
-        function getTextCoordinates(text) {
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000000, 0.02);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            adjustCameraPosition();
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            // *** 性能优化关键：限制像素比，防止Retina屏GPU过载 ***
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); 
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            dirLight.position.set(5, 10, 7);
+            scene.add(dirLight);
+
+            createParticleSystem();
+            createBalloons();
+
+            window.addEventListener('resize', onWindowResize);
+            
+            startBtn.addEventListener('click', startSequence);
+            exitBtn.addEventListener('click', resetSystem);
+            fsBtn.addEventListener('click', toggleFullscreen);
+            
+            settingsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                settingsPanel.classList.toggle('active');
+            });
+            brightnessSlider.addEventListener('input', (e) => {
+                updateBrightness(parseFloat(e.target.value));
+            });
+            
+            const canvas = document.getElementById('canvas-container');
+            
+            canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+            canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+            canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+            
+            canvas.addEventListener('mousedown', onMouseDown, { passive: false });
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+            canvas.addEventListener('wheel', onWheel, { passive: false });
+
+            setRandomParticles();
+            animate();
+        }
+
+        function createParticleSystem() {
+            particleGeo = new THREE.BufferGeometry();
+            const count = CONFIG.particleCount;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            
+            textTargetPositions = new Float32Array(count * 3);
+            sphereTargetPositions = new Float32Array(count * 3);
+            activeTargetPositions = new Float32Array(count * 3);
+            baseColorsRGB = new Float32Array(count * 3);
+
+            for (let i = 0; i < count; i++) {
+                positions[i * 3] = (Math.random() - 0.5) * 100;
+                positions[i * 3 + 1] = (Math.random() - 0.5) * 100;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+
+                const color = new THREE.Color(CONFIG.colors[Math.floor(Math.random() * CONFIG.colors.length)]);
+                
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+
+                baseColorsRGB[i * 3] = color.r;
+                baseColorsRGB[i * 3 + 1] = color.g;
+                baseColorsRGB[i * 3 + 2] = color.b;
+
+                const theta = Math.random() * Math.PI * 2; 
+                const phi = Math.acos((Math.random() * 2) - 1); 
+                const r = CONFIG.sphereRadius * Math.cbrt(Math.random()); 
+                const finalR = r + (CONFIG.sphereRadius * 0.5); 
+
+                sphereTargetPositions[i*3] = finalR * Math.sin(phi) * Math.cos(theta);
+                sphereTargetPositions[i*3+1] = finalR * Math.sin(phi) * Math.sin(theta);
+                sphereTargetPositions[i*3+2] = finalR * Math.cos(phi);
+            }
+
+            particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            particleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const sprite = new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/disc.png');
+
+            particleMat = new THREE.PointsMaterial({
+                size: CONFIG.particleSize,
+                vertexColors: true,
+                map: sprite,
+                transparent: true,
+                opacity: 1.0,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            particles = new THREE.Points(particleGeo, particleMat);
+            scene.add(particles);
+        }
+
+        function updateBrightness(multiplier) {
+            if (!particleGeo) return;
+            const colors = particleGeo.attributes.color.array;
+            
+            for(let i=0; i<CONFIG.particleCount; i++) {
+                const i3 = i * 3;
+                colors[i3]     = Math.min(1.0, baseColorsRGB[i3] * multiplier);
+                colors[i3 + 1] = Math.min(1.0, baseColorsRGB[i3 + 1] * multiplier);
+                colors[i3 + 2] = Math.min(1.0, baseColorsRGB[i3 + 2] * multiplier);
+            }
+            particleGeo.attributes.color.needsUpdate = true;
+        }
+
+        // --- Interaction ---
+        function getDistance(touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function onTouchStart(e) {
+            if (state !== 'FINALE') return;
+            if(e.target.closest('#settings-container')) return;
+            e.preventDefault();
+
+            if (e.touches.length === 1) {
+                isDragging = true;
+                previousMouseX = e.touches[0].clientX;
+            } else if (e.touches.length === 2) {
+                isDragging = false; 
+                touchStartDist = getDistance(e.touches);
+                touchStartDispersion = dispersionLevel;
+            }
+        }
+
+        function onTouchMove(e) {
+            if (state !== 'FINALE') return;
+            if(e.target.closest('#settings-container')) return;
+            e.preventDefault();
+
+            if (e.touches.length === 1 && isDragging) {
+                const deltaX = e.touches[0].clientX - previousMouseX;
+                targetRotationY += deltaX * 0.005; 
+                previousMouseX = e.touches[0].clientX;
+            } else if (e.touches.length === 2) {
+                const currentDist = getDistance(e.touches);
+                const delta = currentDist - touchStartDist;
+                const sensitivity = 0.005; 
+                let newLevel = touchStartDispersion + delta * sensitivity;
+                dispersionLevel = Math.max(0, Math.min(1, newLevel));
+                updateTargetMix();
+            }
+        }
+
+        function onTouchEnd() { isDragging = false; }
+        function onMouseDown(e) {
+            if (state !== 'FINALE') return;
+            if(e.target.closest('#settings-container') || e.target.tagName === 'INPUT') return;
+            isDragging = true;
+            previousMouseX = e.clientX;
+        }
+        function onMouseMove(e) {
+            if (state !== 'FINALE' || !isDragging) return;
+            const deltaX = e.clientX - previousMouseX;
+            targetRotationY += deltaX * 0.003;
+            previousMouseX = e.clientX;
+        }
+        function onMouseUp() { isDragging = false; }
+        function onWheel(e) {
+            if (state !== 'FINALE') return;
+            dispersionLevel += e.deltaY * 0.001;
+            dispersionLevel = Math.max(0, Math.min(1, dispersionLevel));
+            updateTargetMix();
+        }
+
+        function updateTargetMix() {
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                const i3 = i * 3;
+                activeTargetPositions[i3]     = textTargetPositions[i3] * (1 - dispersionLevel) + sphereTargetPositions[i3] * dispersionLevel;
+                activeTargetPositions[i3 + 1] = textTargetPositions[i3 + 1] * (1 - dispersionLevel) + sphereTargetPositions[i3 + 1] * dispersionLevel;
+                activeTargetPositions[i3 + 2] = textTargetPositions[i3 + 2] * (1 - dispersionLevel) + sphereTargetPositions[i3 + 2] * dispersionLevel;
+            }
+        }
+
+        function generateTextParticles(text, fontSize = 120) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            const size = 500;
-            canvas.width = size; canvas.height = size;
-            ctx.font = 'bold 200px "Microsoft YaHei", sans-serif';
-            ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(text, size / 2, size / 2);
-            const data = ctx.getImageData(0, 0, size, size).data;
-            const points = [];
-            for (let y = 0; y < size; y += 4) {
-                for (let x = 0; x < size; x += 4) {
-                    if (data[(y * size + x) * 4 + 3] > 128) {
-                        points.push({ x: (x - size/2)*0.15, y: -(y - size/2)*0.15, z: 0 });
+            const width = 600; 
+            const height = 300;
+            canvas.width = width;
+            canvas.height = height;
+
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, width, height);
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = `900 ${fontSize}px "Microsoft YaHei", "Heiti SC", sans-serif`; 
+            ctx.fillText(text, width / 2, height / 2);
+
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            const validPoints = [];
+            const step = 2; 
+
+            for (let y = 0; y < height; y += step) {
+                for (let x = 0; x < width; x += step) {
+                    if (data[(y * width + x) * 4] > 128) {
+                        validPoints.push({
+                            x: (x - width / 2) * CONFIG.textScale,
+                            y: -(y - height / 2) * CONFIG.textScale,
+                            z: 0
+                        });
                     }
                 }
             }
-            return points;
-        }
 
-        function getHeartCoordinates(count) {
-            const points = [];
-            for (let i = 0; i < count; i++) {
-                const t = Math.random() * Math.PI * 2;
-                const x = 16 * Math.pow(Math.sin(t), 3);
-                const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-                points.push({ x: x * 0.5, y: y * 0.5, z: (Math.random() - 0.5) * 2 });
-            }
-            return points;
-        }
-
-        const allPoints = [...getTextCoordinates("允允"), ...getHeartCoordinates(1500)];
-        const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(allPoints.length * 3);
-        const randoms = new Float32Array(allPoints.length * 3);
-
-        allPoints.forEach((p, i) => {
-            positions[i*3] = p.x; positions[i*3+1] = p.y; positions[i*3+2] = p.z;
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos(Math.random() * 2 - 1);
-            const r = 20 + Math.random() * 20;
-            randoms[i*3] = r * Math.sin(phi) * Math.cos(theta);
-            randoms[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
-            randoms[i*3+2] = r * Math.cos(phi);
-        });
-
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 3));
-
-        // --- Shader 材质 ---
-        const material = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uColor: { value: new THREE.Color(config.particleColor) },
-                uDispersion: { value: 0 },
-                uSize: { value: config.particleSize * renderer.getPixelRatio() } // 初始化大小
-            },
-            vertexShader: `
-                uniform float uTime;
-                uniform float uDispersion;
-                uniform float uSize;
-                attribute vec3 aRandom;
-                varying float vAlpha;
-                void main() {
-                    vec3 stablePos = position + vec3(0.0, sin(uTime * 2.0 + position.x) * 0.2, 0.0);
-                    vec3 finalPos = mix(stablePos, stablePos + aRandom, uDispersion);
-                    
-                    // 粒子大小计算：基础大小 * (扩散膨胀) * (透视缩放)
-                    gl_PointSize = uSize * (1.0 + uDispersion * 0.5);
-                    gl_PointSize *= (20.0 / - (modelViewMatrix * vec4(finalPos, 1.0)).z);
-                    
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(finalPos, 1.0);
-                    vAlpha = 1.0 - uDispersion * 0.8;
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 uColor;
-                varying float vAlpha;
-                void main() {
-                    vec2 uv = gl_PointCoord.xy - 0.5;
-                    float r = length(uv);
-                    if (r > 0.5) discard;
-                    float glow = pow(1.0 - (r * 2.0), 1.5);
-                    gl_FragColor = vec4(uColor, vAlpha * glow);
-                }
-            `,
-            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
-        });
-        const particles = new THREE.Points(geometry, material);
-        scene.add(particles);
-
-        // --- 交互变量 ---
-        let targetRotationY = 0;
-        let targetDispersion = 0;
-        let targetScale = 1.0;
-        
-        let isDragging = false, prevMouse = {x:0, y:0};
-        const onMove = (x, y) => {
-            if (!isDragging) return;
-            targetRotationY += (x - prevMouse.x) * 0.005;
-            targetDispersion += (y - prevMouse.y) * 0.005;
-            targetDispersion = Math.max(0, Math.min(1, targetDispersion));
-            config.dispersion = targetDispersion;
-            prevMouse = { x, y };
-        };
-        window.addEventListener('mousedown', e => { isDragging=true; prevMouse={x:e.clientX, y:e.clientY}; });
-        window.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
-        window.addEventListener('mouseup', () => isDragging=false);
-        window.addEventListener('touchstart', e => { isDragging=true; prevMouse={x:e.touches[0].clientX, y:e.touches[0].clientY}; }, {passive:false});
-        window.addEventListener('touchmove', e => { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
-        window.addEventListener('touchend', () => isDragging=false);
-
-        // --- MediaPipe 单手逻辑 ---
-        let handLandmarker;
-        const video = document.getElementById('webcam-video');
-        const canvasElement = document.getElementById('webcam-canvas');
-        const canvasCtx = canvasElement.getContext('2d');
-
-        async function initVision() {
-            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
-            handLandmarker = await HandLandmarker.createFromOptions(vision, {
-                baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", delegate: "GPU" },
-                runningMode: "VIDEO", numHands: 1
-            });
-            document.getElementById('loading-text').style.display = 'none';
-            navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-                video.srcObject = stream;
-                video.addEventListener('loadeddata', predictWebcam);
-                document.getElementById('webcam-container').style.display = 'block';
-            });
-        }
-
-        let lastVideoTime = -1;
-        function predictWebcam() {
-            canvasElement.width = video.videoWidth; canvasElement.height = video.videoHeight;
-            if (lastVideoTime !== video.currentTime && handLandmarker) {
-                lastVideoTime = video.currentTime;
-                const results = handLandmarker.detectForVideo(video, performance.now());
-                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                if (results.landmarks && results.landmarks.length > 0) {
-                    const landmarks = results.landmarks[0];
-                    const drawingUtils = new DrawingUtils(canvasCtx);
-                    drawingUtils.drawConnectors(landmarks, HandLandmarker.HAND_CONNECTIONS, {color: "#00FF00", lineWidth: 2});
-                    drawingUtils.drawLandmarks([landmarks[4], landmarks[8]], {color: "#FF0000", lineWidth: 3});
-                    if (config.handControl) processSingleHand(landmarks);
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                const i3 = i * 3;
+                if (i < validPoints.length) {
+                    textTargetPositions[i3] = validPoints[i].x;
+                    textTargetPositions[i3 + 1] = validPoints[i].y;
+                    textTargetPositions[i3 + 2] = validPoints[i].z;
+                } else {
+                    textTargetPositions[i3] = (Math.random() - 0.5) * 120;
+                    textTargetPositions[i3 + 1] = (Math.random() - 0.5) * 120;
+                    textTargetPositions[i3 + 2] = (Math.random() - 0.5) * 80 - 10;
                 }
             }
-            requestAnimationFrame(predictWebcam);
-        }
-
-        function processSingleHand(hand) {
-            const palmX = hand[9].x; 
-            targetRotationY = (palmX - 0.5) * 4.0;
-            const thumb = hand[4];
-            const index = hand[8];
-            const distance = Math.sqrt(Math.pow(thumb.x - index.x, 2) + Math.pow(thumb.y - index.y, 2));
-            const minOpen = 0.02; const maxOpen = 0.25; 
-            let normalizedDist = (distance - minOpen) / (maxOpen - minOpen);
-            normalizedDist = Math.max(0, Math.min(1, normalizedDist));
-            targetScale = 0.5 + normalizedDist * 2.0; 
-        }
-
-        // --- GUI 设置 (更新处) ---
-        const gui = new GUI({ container: document.getElementById('ui-container') });
-        const visualFolder = gui.addFolder('视觉设置'); // 创建文件夹分类
-        
-        // 颜色选择器
-        visualFolder.addColor(config, 'particleColor')
-            .name('粒子颜色')
-            .onChange(c => material.uniforms.uColor.value.set(c));
             
-        // 粒子大小调整 (1.0 到 20.0)
-        visualFolder.add(config, 'particleSize', 1.0, 20.0)
-            .name('粒子大小')
-            .onChange(v => {
-                // 更新 Shader 中的 uSize，同时考虑屏幕像素比，保证清晰度
-                material.uniforms.uSize.value = v * renderer.getPixelRatio();
+            if (state !== 'FINALE') {
+                dispersionLevel = 0;
+                for(let i=0; i<activeTargetPositions.length; i++) activeTargetPositions[i] = textTargetPositions[i];
+            } else {
+                updateTargetMix();
+            }
+        }
+
+        function setRandomParticles() {
+             for (let i = 0; i < CONFIG.particleCount; i++) {
+                const i3 = i * 3;
+                activeTargetPositions[i3] = (Math.random() - 0.5) * 60;
+                activeTargetPositions[i3 + 1] = (Math.random() - 0.5) * 60;
+                activeTargetPositions[i3 + 2] = (Math.random() - 0.5) * 60;
+            }
+        }
+
+        // --- Balloons Optimized ---
+        function createBalloons() {
+            // *** 性能优化：减少几何体分段数 32 -> 8 ***
+            const geometry = new THREE.SphereGeometry(0.4, 8, 8); 
+            const material = new THREE.MeshPhongMaterial({ 
+                shininess: 60, // 降低反光计算复杂度
+                emissive: 0x111111, 
+                specular: 0x444444 
             });
+            balloonsMesh = new THREE.InstancedMesh(geometry, material, CONFIG.balloonCount);
+            resetBalloonsData();
+            balloonsMesh.visible = false;
+            scene.add(balloonsMesh);
+        }
 
-        const controlFolder = gui.addFolder('交互设置');
-        controlFolder.add(config, 'handControl').name('启用摄像头控制');
-        
-        // 默认展开视觉设置
-        visualFolder.open();
-        controlFolder.open();
+        function resetBalloonsData() {
+            const dummy = new THREE.Object3D();
+            for(let i=0; i<CONFIG.balloonCount; i++) {
+                dummy.position.set(
+                    (Math.random() - 0.5) * 50,
+                    -25 - Math.random() * 20, 
+                    (Math.random() - 0.5) * 30
+                );
+                const scale = 0.8 + Math.random() * 0.6;
+                dummy.scale.set(scale, scale * 1.25, scale);
+                dummy.updateMatrix();
+                balloonsMesh.setMatrixAt(i, dummy.matrix);
+                
+                const color = new THREE.Color(CONFIG.colors[Math.floor(Math.random() * CONFIG.colors.length)]);
+                balloonsMesh.setColorAt(i, color);
+                
+                balloonsMesh.userData[i] = {
+                    speed: 0.15 + Math.random() * 0.2, // 稍微快一点飞走
+                    xOffset: Math.random() * 100,
+                    zOffset: Math.random() * 100,
+                    active: true 
+                };
+            }
+            if(balloonsMesh.instanceColor) balloonsMesh.instanceColor.needsUpdate = true;
+            balloonsMesh.instanceMatrix.needsUpdate = true;
+        }
 
-        // --- 循环 ---
-        const clock = new THREE.Clock();
+        function animateBalloons() {
+            if (!balloonsMesh.visible || !balloonsActive) return;
+
+            const dummy = new THREE.Object3D();
+            const time = clock.getElapsedTime();
+            let activeCount = 0;
+
+            for (let i = 0; i < CONFIG.balloonCount; i++) {
+                // 如果这个气球已经飞很高了，就跳过计算，省性能
+                if (!balloonsMesh.userData[i].active) continue;
+
+                balloonsMesh.getMatrixAt(i, dummy.matrix);
+                dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
+
+                const data = balloonsMesh.userData[i];
+                dummy.position.y += data.speed;
+                dummy.position.x += Math.sin(time * 3 + data.xOffset) * 0.02;
+                dummy.position.z += Math.cos(time * 2 + data.zOffset) * 0.02;
+
+                // *** 逻辑变更：飞出屏幕上方后消失，不再循环 ***
+                if(dummy.position.y > 40) {
+                    balloonsMesh.userData[i].active = false;
+                    // 移到视野外以防万一
+                    dummy.position.set(0, 500, 0); 
+                } else {
+                    activeCount++;
+                }
+
+                dummy.updateMatrix();
+                balloonsMesh.setMatrixAt(i, dummy.matrix);
+            }
+            
+            balloonsMesh.instanceMatrix.needsUpdate = true;
+
+            // 如果所有气球都飞走了，关闭整个气球渲染
+            if (activeCount === 0) {
+                balloonsActive = false;
+                balloonsMesh.visible = false;
+            }
+        }
+
+        // --- Adaptive Camera (Tablet & Landscape) ---
+        function adjustCameraPosition() {
+            const aspect = window.innerWidth / window.innerHeight;
+            // 逻辑：横屏(aspect > 1)时，需要拉远相机以容纳宽文字
+            // 竖屏(aspect < 1)时，同样需要拉远
+            
+            if (aspect >= 1.0) {
+                // 横屏平板/电脑：根据宽高比计算距离
+                // aspect 越宽(16:9)，z 可以越近(14)
+                // aspect 越方(4:3 iPad landscape, ~1.33)，z 需要稍远(20)
+                camera.position.z = 12 + (1.5 / aspect) * 10;
+            } else {
+                // 竖屏手机/平板
+                if (aspect < 0.6) { // 细长手机
+                    camera.position.z = 32; 
+                } else { // 胖手机/竖屏平板
+                    camera.position.z = 25;
+                }
+            }
+        }
+
+        function startSequence() {
+            startBtn.classList.add('hidden');
+            settingsPanel.classList.remove('active');
+            state = 'SEQ_1';
+            runSequenceStep(1);
+        }
+
+        // --- Countdown Logic: 3 -> 2 -> 1 ---
+        function runSequenceStep(step) {
+            if (state === 'RESET') return;
+            
+            if (step === 1) {
+                generateTextParticles("3", 160);
+                setTimeout(() => runSequenceStep(2), 1000); 
+            } else if (step === 2) {
+                generateTextParticles("2", 160); 
+                setTimeout(() => runSequenceStep(3), 1000);
+            } else if (step === 3) {
+                generateTextParticles("1", 160); 
+                setTimeout(() => triggerFinale(), 1000);
+            }
+        }
+
+        function triggerFinale() {
+            if (state === 'RESET') return;
+            state = 'FINALE';
+            generateTextParticles("允宝", 130); 
+            
+            // 激活气球
+            balloonsActive = true;
+            balloonsMesh.visible = true;
+            
+            exitBtn.classList.remove('hidden');
+            setTimeout(() => exitBtn.classList.add('fade-in'), 100);
+            
+            hintText.classList.remove('hidden');
+            setTimeout(() => hintText.style.opacity = 1, 500);
+        }
+
+        function resetSystem() {
+            state = 'RESET';
+            dispersionLevel = 0;
+            targetRotationY = 0;
+            currentRotationY = 0;
+            if(particles) particles.rotation.y = 0;
+            
+            exitBtn.classList.remove('fade-in');
+            hintText.style.opacity = 0;
+            settingsPanel.classList.remove('active');
+            
+            setTimeout(() => {
+                exitBtn.classList.add('hidden');
+                hintText.classList.add('hidden');
+            }, 500);
+            startBtn.classList.remove('hidden');
+
+            balloonsActive = false;
+            balloonsMesh.visible = false;
+            resetBalloonsData(); // 重置气球位置供下次使用
+            
+            setRandomParticles();
+            adjustCameraPosition();
+            camera.lookAt(0,0,0);
+        }
+
         function animate() {
-            requestAnimationFrame(animate);
-            const dt = clock.getElapsedTime();
-            material.uniforms.uTime.value = dt;
-            material.uniforms.uDispersion.value += (targetDispersion - material.uniforms.uDispersion.value) * 0.1;
-            particles.rotation.y += (targetRotationY - particles.rotation.y) * 0.1;
-            const currentScale = particles.scale.x;
-            particles.scale.setScalar(currentScale + (targetScale - currentScale) * 0.1);
+            animationId = requestAnimationFrame(animate);
+
+            const positions = particleGeo.attributes.position.array;
+            const speed = (state === 'FINALE') ? 0.2 : 0.15; 
+
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                const i3 = i * 3;
+                positions[i3]     += (activeTargetPositions[i3] - positions[i3]) * speed;
+                positions[i3 + 1] += (activeTargetPositions[i3 + 1] - positions[i3 + 1]) * speed;
+                positions[i3 + 2] += (activeTargetPositions[i3 + 2] - positions[i3 + 2]) * speed;
+            }
+            particleGeo.attributes.position.needsUpdate = true;
+
+            if(particles) {
+                currentRotationY += (targetRotationY - currentRotationY) * 0.05;
+                particles.rotation.y = currentRotationY;
+            }
+
+            if(state === 'FINALE') {
+                 const time = clock.getElapsedTime();
+                 // 稍微减弱呼吸幅度，节省计算
+                 camera.position.x += (Math.sin(time * 0.3) * 1.5 - camera.position.x) * 0.02;
+                 camera.position.y += (Math.cos(time * 0.4) * 1.0 - camera.position.y) * 0.02;
+                 camera.lookAt(0, 0, 0);
+                 
+                 // 处理气球
+                 animateBalloons();
+            }
+
             renderer.render(scene, camera);
         }
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            // 窗口变化时重新计算粒子大小
-            material.uniforms.uSize.value = config.particleSize * renderer.getPixelRatio();
-        });
-        document.getElementById('fullscreen-btn').addEventListener('click', () => {
-            !document.fullscreenElement ? document.body.requestFullscreen() : document.exitFullscreen();
-        });
+            adjustCameraPosition();
+        }
 
-        initVision();
-        animate();
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(e => console.log(e));
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        init();
 
     </script>
 </body>
